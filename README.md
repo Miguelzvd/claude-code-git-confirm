@@ -17,7 +17,9 @@ Claude quer rodar git push origin main. Permitir?
 
 ### Claude co-author lines
 
-Every `git commit` Claude runs loses its `Co-Authored-By` lines that mention Claude or Anthropic (any case), so the commit keeps only your authorship. Other co-authors stay. This covers a line inside the message (heredoc or `-m "..."`) and a separate `-m` or `--trailer` argument. It always runs, whether or not `commit` is on your list.
+Every `git commit` Claude runs loses its `Co-Authored-By` lines that mention Claude or Anthropic (any case), so the commit keeps only your authorship. Other co-authors stay. This covers a line inside the message (heredoc or `-m "..."`) and a separate `-m` or `--trailer` argument. It runs whether or not `commit` is on your list.
+
+To keep Claude as a co-author, turn on **Claude como coautor nos commits** in `/git-confirm` and save. It is off by default.
 
 ## Install
 
@@ -46,6 +48,7 @@ claude plugin install git-confirm --marketplace Miguelzvd/miguelzvd-claude-code-
 ● git push
 ○ git push --force
 ...
+○ Claude como coautor nos commits
 ✔ Salvar
 ✖ Cancelar
 ```

@@ -4,6 +4,9 @@ import type { Register } from 'claude-code'
 const COMMAND = 'git-confirm'
 const PANE = 'git-confirm'
 const STORE_KEY = 'commands'
+// true deixa o Claude como coautor; ausente ou false remove (o padrão).
+const COAUTHOR_KEY = 'claudeCoauthor'
+const COAUTHOR = 'coauthor'
 const ALLOW = 'Permitir'
 const BLOCK = 'Bloquear'
 const SAVE = 'save'
@@ -42,10 +45,12 @@ export const DEFAULTS = ['commit', 'push', 'reset --hard', 'rebase', 'merge', 'c
 const draft = atom({ plugin: 'git-confirm', key: 'draft' } as const, [] as string[])
 const focused = atom({ plugin: 'git-confirm', key: 'focused' } as const, `rule:${CATALOG[0]}`)
 const top = atom({ plugin: 'git-confirm', key: 'top' } as const, 0)
+const coauthorDraft = atom({ plugin: 'git-confirm', key: 'coauthorDraft' } as const, false)
 
 // Linhas focáveis do painel, na ordem desenhada; a linha 0 é o cabeçalho.
 const paneKeys = (chosen: string[]): string[] => [
   ...[...CATALOG, ...chosen.filter(rule => !CATALOG.includes(rule))].map(rule => `rule:${rule}`),
+  COAUTHOR,
   SAVE,
   CANCEL,
 ]
@@ -109,6 +114,8 @@ export const register: Register = on => {
   on('command.run', { command: COMMAND }, async $ => {
     const current = toRules(await $.store.get(STORE_KEY))
     await update($, draft, () => current)
+    const keepCoauthor = (await $.store.get(COAUTHOR_KEY)) === true
+    await update($, coauthorDraft, () => keepCoauthor)
     await update($, focused, () => `rule:${CATALOG[0]}`)
     await update($, top, () => 0)
     await $.ui.open({ id: PANE, title: 'Comandos git com confirmação', focus: true, closeOnEscape: true })
@@ -118,6 +125,7 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const chosen = await read($, draft)
+    const keepCoauthor = await read($, coauthorDraft)
     const items = [...CATALOG, ...chosen.filter(rule => !CATALOG.includes(rule))]
 
     if (e.surface === 'mobile') {
@@ -131,6 +139,7 @@ export const register: Register = on => {
     const save = async () => {
       const picked = await read($, draft)
       await $.store.set(STORE_KEY, picked)
+      await $.store.set(COAUTHOR_KEY, await read($, coauthorDraft))
       await $.ui.close({ id: PANE })
       $.ui.toast(`${picked.length} comando(s) git com confirmação.`)
     }
@@ -147,6 +156,12 @@ export const register: Register = on => {
             onPress={() => void toggle(rule)}
           />
         ))}
+        <Button
+          key={COAUTHOR}
+          plain
+          label={`${keepCoauthor ? '●' : '○'} Claude como coautor nos commits`}
+          onPress={() => void update($, coauthorDraft, keep => !keep)}
+        />
         <Button key={SAVE} plain label="✔ Salvar" onPress={() => void save()} />
         <Button key={CANCEL} plain label="✖ Cancelar" onPress={() => void $.ui.close({ id: PANE })} />
       </Box>
@@ -185,7 +200,8 @@ export const register: Register = on => {
   })
 
   on('tool.call', { tool: 'Bash' }, async ($, original, next) => {
-    const command = stripAiCoauthor(original.command)
+    const keepCoauthor = (await $.store.get(COAUTHOR_KEY)) === true
+    const command = keepCoauthor ? original.command : stripAiCoauthor(original.command)
     const e = command === original.command ? original : { ...original, command }
     const rules = toRules(await $.store.get(STORE_KEY))
     const hits = gitInvocations(e.command)

@@ -96,11 +96,24 @@ test('permitir deixa o comando rodar', async ($, on) => {
   expect(ran.isError).toBeFalsy()
 })
 
+test('com a coautoria ligada, o commit roda como veio', async ($, on) => {
+  let ran = ''
+  on('store.get', (_, e) => ({ value: e.key === 'claudeCoauthor' ? true : ['push'] }))
+  on('tool.call', { tool: 'Bash' }, (_, e) => {
+    ran = e.command
+    return { result: { stdout: '', stderr: '', interrupted: false } }
+  })
+
+  const command = 'git commit -m "x\n\nCo-Authored-By: Claude <noreply@anthropic.com>"'
+  await $.tool.call({ tool: 'Bash', command })
+  expect(ran).toBe(command)
+})
+
 test('a lista marca, desmarca e salva', async ($, on) => {
-  let saved: unknown
-  on('store.get', () => ({ value: ['push'] }))
+  const saved: Record<string, unknown> = {}
+  on('store.get', (_, e) => ({ value: e.key === 'commands' ? ['push'] : undefined }))
   on('store.set', (_, e) => {
-    saved = e.value
+    saved[e.key] = e.value
     return { value: undefined }
   })
   on('command.register', () => ({ value: { command: 'git-confirm' } }))
@@ -121,7 +134,10 @@ test('a lista marca, desmarca e salva', async ($, on) => {
   await ui.press({ key: 'rule:commit' })
   await ui.press({ key: 'rule:push' })
   expect((await ui.find({ type: 'Button', key: 'rule:commit' }))?.text).toContain('●')
+  expect((await ui.find({ type: 'Button', key: 'coauthor' }))?.text).toContain('○')
+  await ui.press({ key: 'coauthor' })
+  expect((await ui.find({ type: 'Button', key: 'coauthor' }))?.text).toContain('●')
   await ui.press({ key: 'save' })
-  expect(saved).toEqual(['commit'])
+  expect(saved).toEqual({ commands: ['commit'], claudeCoauthor: true })
   await ui.unmount()
 })
