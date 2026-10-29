@@ -80,6 +80,17 @@ export const matchRule = (invocation: string[], rule: string): boolean => {
   return cmd === sub && rest.every(word => args.includes(word))
 }
 
+// Coautoria do Claude/Anthropic: o commit fica só com a autoria do usuário.
+const AI_TRAILER_ARG = /\s+(?:--trailer|-m)\s+(["'])co-authored-by:[^\n]*?(?:claude|anthropic)[^\n]*?\1/gi
+// Para antes de uma aspa: a linha pode ser a última de um `-m "..."`.
+const AI_TRAILER_LINE = /^[ \t]*co-authored-by:[^\n"']*(?:claude|anthropic)[^\n"']*\n?/gim
+
+// Tira as linhas e os argumentos `Co-Authored-By` que citam Claude ou Anthropic de um `git commit`.
+export const stripAiCoauthor = (command: string): string =>
+  gitInvocations(command).some(([sub]) => sub === 'commit')
+    ? command.replace(AI_TRAILER_ARG, '').replace(AI_TRAILER_LINE, '')
+    : command
+
 const isList = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(item => typeof item === 'string')
 
@@ -173,7 +184,9 @@ export const register: Register = on => {
     return next({ ...e, offset })
   })
 
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  on('tool.call', { tool: 'Bash' }, async ($, original, next) => {
+    const command = stripAiCoauthor(original.command)
+    const e = command === original.command ? original : { ...original, command }
     const rules = toRules(await $.store.get(STORE_KEY))
     const hits = gitInvocations(e.command)
       .filter(invocation => rules.some(rule => matchRule(invocation, rule)))

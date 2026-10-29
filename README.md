@@ -15,6 +15,10 @@ Claude quer rodar git push origin main. Permitir?
 - Text typed under **Other**: the command is denied and Claude reads your text as the reason.
 - Dialog dismissed, or no one to ask (`claude -p`): the command is denied.
 
+### Claude co-author lines
+
+Every `git commit` Claude runs loses its `Co-Authored-By` lines that mention Claude or Anthropic (any case), so the commit keeps only your authorship. Other co-authors stay. This covers a line inside the message (heredoc or `-m "..."`) and a separate `-m` or `--trailer` argument. It always runs, whether or not `commit` is on your list.
+
 ## Install
 
 In a Claude Code terminal session:

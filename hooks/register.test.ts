@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { gitInvocations, matchRule } from './register'
+import { gitInvocations, matchRule, stripAiCoauthor } from './register'
 
 const answering = (label: string) => (_: unknown, e: { questions: { question: string }[] }) => ({
   result: { questions: e.questions, answers: { [e.questions[0].question]: label } },
@@ -28,6 +28,40 @@ test('acha invocações git em comandos compostos', async () => {
   expect(gitInvocations('echo git push')).toEqual([])
   expect(matchRule(['branch', '-D', 'x'], 'branch -D')).toBe(true)
   expect(matchRule(['branch', 'x'], 'branch -D')).toBe(false)
+})
+
+test('remove a coautoria do Claude e mantém a dos outros', async () => {
+  const heredoc = [
+    "git commit -F - <<'EOF'",
+    'feat: x',
+    '',
+    'Co-Authored-By: Maria <maria@x.com>',
+    'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>',
+    'EOF',
+  ].join('\n')
+  expect(stripAiCoauthor(heredoc)).toBe(
+    ["git commit -F - <<'EOF'", 'feat: x', '', 'Co-Authored-By: Maria <maria@x.com>', 'EOF'].join('\n'),
+  )
+  expect(stripAiCoauthor('git commit -m "feat: x" -m "Co-authored-by: Claude <noreply@anthropic.com>"')).toBe(
+    'git commit -m "feat: x"',
+  )
+  expect(stripAiCoauthor('git commit -m x --trailer "Co-Authored-By: bot <ai@anthropic.com>" && git push')).toBe(
+    'git commit -m x && git push',
+  )
+  const notCommit = 'echo "Co-Authored-By: Claude <noreply@anthropic.com>" >> notes.txt'
+  expect(stripAiCoauthor(notCommit)).toBe(notCommit)
+})
+
+test('o commit roda sem a linha do Claude', async ($, on) => {
+  let ran = ''
+  on('store.get', () => ({ value: ['push'] }))
+  on('tool.call', { tool: 'Bash' }, (_, e) => {
+    ran = e.command
+    return { result: { stdout: '', stderr: '', interrupted: false } }
+  })
+
+  await $.tool.call({ tool: 'Bash', command: 'git commit -m "x\n\nCo-Authored-By: Claude <noreply@anthropic.com>"' })
+  expect(ran).toBe('git commit -m "x\n\n"')
 })
 
 test('comando fora da lista passa sem perguntar', async ($, on) => {

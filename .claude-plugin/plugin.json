@@ -1,6 +1,6 @@
 {
   "name": "git-confirm",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Pede confirmação antes de rodar os comandos git escolhidos pelo usuário",
   "types": "./types/index.d.ts"
 }
